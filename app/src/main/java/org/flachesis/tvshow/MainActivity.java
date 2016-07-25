@@ -19,6 +19,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         ArrayList<TvItem> tvItemList = new ArrayList<>();
+        tvItemList.add(new TvItem("三立新聞台", "9AE5FFmMDfk"));
         tvItemList.add(new TvItem("民視新聞台", "XxJKnDLYZz4"));
         tvItemList.add(new TvItem("東森新聞台", "jMN4cxyhJjk"));
         tvItemList.add(new TvItem("中天新聞台", "hgIfZz8STLk"));
