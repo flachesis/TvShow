@@ -24,7 +24,8 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
-    ListView tvList;
+    ArrayList<TvItem> tvItemList;
+    ArrayAdapter<TvItem> adapter;
 
     public class TvListRender extends AsyncTask<Void, Integer, String> {
 
@@ -49,11 +50,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         protected void onProgressUpdate(Integer... progress) {
-
+            super.onProgressUpdate(progress);
         }
 
         protected void onPostExecute(String result) {
-            ArrayList<TvItem> tvItemList = new ArrayList<>();
+            super.onPostExecute(result);
             try {
                 JSONObject obj = new JSONObject(result);
                 JSONArray arr = obj.getJSONArray("tvlist");
@@ -66,17 +67,22 @@ public class MainActivity extends AppCompatActivity {
                 tvItemList.clear();
             }
 
-            rendTvList(tvItemList);
+            adapter.notifyDataSetChanged();
         }
     }
 
-    protected void rendTvList(ArrayList<TvItem> tvItemList) {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        tvItemList = new ArrayList<>();
         int layoutId = android.R.layout.simple_list_item_1;
-        ArrayAdapter<TvItem> adapter = new ArrayAdapter<>(this, layoutId, tvItemList);
-        tvList = (ListView) findViewById(R.id.listView);
+        adapter = new ArrayAdapter<>(this, layoutId, tvItemList);
+        ListView tvList = (ListView) findViewById(R.id.listView);
         tvList.setAdapter(adapter);
 
-        this.tvList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        tvList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -91,12 +97,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
         (new TvListRender()).execute();
     }
