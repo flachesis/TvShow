@@ -2,91 +2,151 @@ package org.flachesis.tvshow;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
+    ListView tvList;
     ArrayList<TvItem> tvItemList;
     ArrayAdapter<TvItem> adapter;
-
-    public class TvListRender extends AsyncTask<Void, Integer, String> {
-
-        @Override
-        protected String doInBackground(Void... parms) {
-            String content = "";
-            String fallback = "{\"tvlist\":[{\"name\":\"三立新聞\",\"id\":\"9AE5FFmMDfk\"},{\"name\":\"民視新聞台\",\"id\":\"XxJKnDLYZz4\"},{\"name\":\"東森新聞台\",\"id\":\"jMN4cxyhJjk\"},{\"name\":\"中天新聞台\",\"id\":\"hgIfZz8STLk\"},{\"name\":\"華視新聞台\",\"id\":\"g9uJqP0hT_I\"},{\"name\":\"台視新聞台\",\"id\":\"yk2CUjbyyQY\"},{\"name\":\"中視新聞台\",\"id\":\"zJtmGiNfTMM\"},{\"name\":\"公共電視\",\"id\":\"TaxTsgmMw_c\"},{\"name\":\"大愛一臺\",\"id\":\"ESKjSwcswBM\"},{\"name\":\"大愛二臺\",\"id\":\"-81c_O1NoPo\"},{\"name\":\"人間衛視\",\"id\":\"LZWKzQCKNI0\"}]}";
-                try {
-                    URL url = new URL("https://api.myjson.com/bins/3rmr3");
-                    URLConnection conn = url.openConnection();
-                    conn.setConnectTimeout(1000);
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(url.openConnection().getInputStream()));
-                    String data;
-                    while ((data = reader.readLine()) != null) {
-                        content += data;
-                    }
-                } catch (IOException e) {
-                    content = fallback;
-                    e.printStackTrace();
-                }
-            return content;
-        }
-
-        protected void onProgressUpdate(Integer... progress) {
-            super.onProgressUpdate(progress);
-        }
-
-        protected void onPostExecute(String result) {
-            super.onPostExecute(result);
-            try {
-                JSONObject obj = new JSONObject(result);
-                JSONArray arr = obj.getJSONArray("tvlist");
-                for (int i = 0; i < arr.length(); i++) {
-                    JSONObject rec = arr.getJSONObject(i);
-                    TvItem item = new TvItem(rec.getString("name"), rec.getString("id"));
-                    tvItemList.add(item);
-                }
-            } catch (JSONException e) {
-                tvItemList.clear();
-            }
-
-            adapter.notifyDataSetChanged();
-        }
-    }
+    File cacheFile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        cacheFile = new File(getApplicationContext().getCacheDir(), "tv_list.json");
         tvItemList = new ArrayList<>();
         int layoutId = android.R.layout.simple_list_item_1;
         adapter = new ArrayAdapter<>(this, layoutId, tvItemList);
-        ListView tvList = (ListView) findViewById(R.id.listView);
+        tvList = (ListView) findViewById(R.id.listView);
         tvList.setAdapter(adapter);
 
-        tvList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        this.setViewItemClickListener(tvList);
 
+        try {
+            this.render();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected void render() throws MalformedURLException {
+        String tvListJson = this.getCacheContent(true);
+        try {
+            if (null != tvListJson) {
+                renderExecute(tvListJson);
+                return;
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        (new Downloader(this.getExecutor())).execute(new URL("https://api.myjson.com/bins/3rmr3"));
+    }
+
+    protected String getCacheContent(boolean isCheckTime) {
+        if (!(cacheFile.exists())) {
+            return null;
+        }
+        long timeInterval = System.currentTimeMillis() - cacheFile.lastModified();
+        System.out.println(cacheFile.lastModified());
+        System.out.println(System.currentTimeMillis());
+        if (isCheckTime && (timeInterval > 3600000)) {
+            return null;
+        }
+
+        String content = "";
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(cacheFile)));
+            String data;
+            while (null != (data = reader.readLine())) {
+                content += data;
+            }
+        } catch (FileNotFoundException e) {
+            return null;
+        } catch (IOException e) {
+            return null;
+        }
+
+        return content;
+    }
+
+    protected void renderExecute(String jsonString) throws JSONException {
+        JSONObject obj = new JSONObject(jsonString);
+        JSONArray arr = obj.getJSONArray("tvlist");
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject rec = arr.getJSONObject(i);
+            TvItem item = new TvItem(rec.getString("name"), rec.getString("id"));
+            tvItemList.add(item);
+        }
+
+        adapter.notifyDataSetChanged();
+
+        try {
+            saveCacheFile(jsonString);
+        } catch (IOException e) {
+            this.deleteCacheFile();
+            e.printStackTrace();
+        }
+    }
+
+    protected void saveCacheFile(String jsonString) throws IOException {
+        this.deleteCacheFile();
+        FileOutputStream outputStream = new FileOutputStream(cacheFile);
+        outputStream.write(jsonString.getBytes());
+
+    }
+
+    protected void deleteCacheFile() {
+        if (!(cacheFile.delete())) {
+            System.out.println("Delete cache file fail.");
+        }
+    }
+
+    protected ExecuteCallback getExecutor() {
+        return new ExecuteCallback() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                TvItem item = (TvItem) parent.getAdapter().getItem(position);
+            public void onTaskComplete(String[] result) {
+                try {
+                    renderExecute(result[0]);
+                } catch (JSONException e) {
+                    String cacheContent = getCacheContent(false);
+                    if (null != cacheContent) {
+                        try {
+                            renderExecute(cacheContent);
+                        } catch (JSONException e1) {
+                            e1.printStackTrace();
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    protected void setViewItemClickListener(ListView view) {
+        view.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                TvItem item = (TvItem) adapterView.getAdapter().getItem(i);
                 try {
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube://" + item.id));
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -97,7 +157,5 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
-        (new TvListRender()).execute();
     }
 }
