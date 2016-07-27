@@ -68,8 +68,6 @@ public class MainActivity extends AppCompatActivity {
             return null;
         }
         long timeInterval = System.currentTimeMillis() - cacheFile.lastModified();
-        System.out.println(cacheFile.lastModified());
-        System.out.println(System.currentTimeMillis());
         if (isCheckTime && (timeInterval > 3600000)) {
             return null;
         }
